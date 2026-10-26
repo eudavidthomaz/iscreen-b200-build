@@ -33,7 +33,8 @@ jobs:
             ninja-build rename gdb re2c universal-ctags lzip libncurses-dev \
             tree pkg-config cmake automake lzop doxygen graphviz \
             libssl-dev genromfs lzma mtools mtd-tools rsync
-          sudo pip3 install pylibfdt --break-system-packages || true
+          sudo /usr/bin/python3 -m pip install fdt --break-system-packages
+          /usr/bin/python3 -c "import fdt"
 
       - name: Instalar toolchain MIPS
         run: |
@@ -43,39 +44,35 @@ jobs:
       - name: Compilar B200 (media_cast = hccast AirPlay/Miracast/DLNA)
         run: |
           cd b200
-          sed -i 's|BR2_TARGET_CROSS=.*|BR2_TARGET_CROSS="/opt/frog-toolchain/mipsel-mti-elf_stable/bin/mipsel-mti-elf-"|' configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
-          grep BR2_TARGET_CROSS configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
-          sed -i 's|BR2_TARGET_CFLAGS="|BR2_TARGET_CFLAGS="-std=gnu99 |' configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
-          grep BR2_TARGET_CFLAGS configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          CFG=configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          sed -i 's|BR2_TARGET_CROSS=.*|BR2_TARGET_CROSS="/opt/frog-toolchain/mipsel-mti-elf_stable/bin/mipsel-mti-elf-"|' $CFG
+          # GCC 14+ promove estes avisos a erro; o código legado (GCC 2019) os aceitava.
+          sed -i 's|BR2_TARGET_CFLAGS="|BR2_TARGET_CFLAGS="-std=gnu99 -fcommon -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types -Wno-error=implicit-int -Wno-error=return-mismatch -Wno-error=declaration-missing-parameter-type -Wno-error=builtin-declaration-mismatch |' $CFG
+          # binutils 2.47 rejeita "-Os" no ld (lia como -O s).
+          sed -i 's|BR2_TARGET_LDFLAGS="-g -EL -Os --static"|BR2_TARGET_LDFLAGS="-g -EL --static"|' $CFG
           sed -i 's/-Werror/-Wno-error/g' build/Makefile.rules
-          sed -i 's|BR2_PACKAGE_FFMPEG_EXTRACONF="|BR2_PACKAGE_FFMPEG_EXTRACONF="--disable-asm --disable-inline-asm --disable-mmi --disable-loongson2 --disable-loongson3 --disable-mipsfpu --disable-mips32r2 --disable-mips32r5 --disable-mips64r2 --disable-mips32r6 --disable-mips64r6 --disable-mipsdsp --disable-mipsdspr2 --disable-msa --disable-msa2 |' configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
-          grep BR2_PACKAGE_FFMPEG_EXTRACONF configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          sed -i 's|BR2_PACKAGE_FFMPEG_EXTRACONF="|BR2_PACKAGE_FFMPEG_EXTRACONF="--disable-asm --disable-inline-asm --disable-mmi --disable-loongson2 --disable-loongson3 --disable-mipsfpu --disable-mips32r2 --disable-mips32r5 --disable-mips64r2 --disable-mips32r6 --disable-mips64r6 --disable-mipsdsp --disable-mipsdspr2 --disable-msa --disable-msa2 |' $CFG
+          # show_stack() do kernel chama lcd_*() incondicionalmente; o defconfig não habilita o driver.
+          echo 'CONFIG_DRV_LCD=y' >> $CFG
+          grep -E '^BR2_TARGET_(CROSS|CFLAGS|LDFLAGS)|^BR2_PACKAGE_FFMPEG_EXTRACONF|^CONFIG_DRV_LCD=' $CFG
           make -f Makefile.common hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          grep -q '^CONFIG_DRV_LCD=y' output/.config
           make -f Makefile.common all
 
       - name: Listar firmware gerado
         run: |
           cd b200
-          echo "=== .asd gerados ==="
-          find . -name "*.asd" -exec ls -la {} \;
-          echo "=== imagens ==="
-          ls -la output/images/ 2>/dev/null | head -40
-
-      - name: Gerar pacote de upgrade (HCFOTA)
-        run: |
-          cd b200
-          ASD=$(find . -name "*.asd" | head -1)
-          if [ -n "$ASD" ]; then
-            cp "$ASD" HCFOTA_HC15B200_hcscreen_rtos_prototype.bin
-            echo "Pacote gerado: HCFOTA_HC15B200_hcscreen_rtos_prototype.bin"
-            ls -la HCFOTA_*.bin
-          fi
+          ls -la output/images/
+          test -s output/images/projector.uImage
 
       - name: Upload do artefato
         uses: actions/upload-artifact@v4
         with:
           name: iscreen-b200-firmware
           path: |
-            b200/**/*.asd
-            b200/HCFOTA_*.bin
-          if-no-files-found: warn
+            b200/output/images/projector.uImage
+            b200/output/images/projector.bin
+            b200/output/images/dtb.bin
+            b200/output/images/persistentmem.bin
+            b200/output/images/romfs.img
+          if-no-files-found: error
