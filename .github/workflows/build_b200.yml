@@ -45,6 +45,8 @@ jobs:
           cd b200
           sed -i 's|BR2_TARGET_CROSS=.*|BR2_TARGET_CROSS="/opt/frog-toolchain/mipsel-mti-elf_stable/bin/mipsel-mti-elf-"|' configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
           grep BR2_TARGET_CROSS configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          sed -i 's|BR2_TARGET_CFLAGS="|BR2_TARGET_CFLAGS="-std=gnu99 |' configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          grep BR2_TARGET_CFLAGS configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
           sed -i 's/-Werror/-Wno-error/g' build/Makefile.rules
           sed -i 's|BR2_PACKAGE_FFMPEG_EXTRACONF="|BR2_PACKAGE_FFMPEG_EXTRACONF="--disable-asm --disable-inline-asm --disable-mmi --disable-loongson2 --disable-loongson3 --disable-mipsfpu --disable-mips32r2 --disable-mips32r5 --disable-mips64r2 --disable-mips32r6 --disable-mips64r6 --disable-mipsdsp --disable-mipsdspr2 --disable-msa --disable-msa2 |' configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
           grep BR2_PACKAGE_FFMPEG_EXTRACONF configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
