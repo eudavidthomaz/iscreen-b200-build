@@ -1,4 +1,4 @@
-name: Build iScreen B200 firmware
+name: Build iScreen B200 firmware (4MB)
 
 on:
   workflow_dispatch:
@@ -41,10 +41,11 @@ jobs:
           cd b200
           ./scripts/install-toolchain.sh
 
-      - name: Compilar B200 (media_cast = hccast AirPlay/Miracast/DLNA)
+      - name: Compilar B200 4MB (hcdemo + LZMA)
         run: |
           cd b200
-          CFG=configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          CFG=configs/hichip_hc15xx_db_b200_v10_hcdemo_defconfig
+          DTS=board/hc15xx/common/dts/hc15xx-db-b200.dts
           sed -i 's|BR2_TARGET_CROSS=.*|BR2_TARGET_CROSS="/opt/frog-toolchain/mipsel-mti-elf_stable/bin/mipsel-mti-elf-"|' $CFG
           # GCC 14+ promove estes avisos a erro; o código legado (GCC 2019) os aceitava.
           sed -i 's|BR2_TARGET_CFLAGS="|BR2_TARGET_CFLAGS="-std=gnu99 -fcommon -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types -Wno-error=implicit-int -Wno-error=return-mismatch -Wno-error=declaration-missing-parameter-type -Wno-error=builtin-declaration-mismatch |' $CFG
@@ -55,7 +56,15 @@ jobs:
           # show_stack() do kernel chama lcd_*() incondicionalmente; o defconfig não habilita o driver.
           echo 'CONFIG_DRV_LCD=y' >> $CFG
           grep -E '^BR2_TARGET_(CROSS|CFLAGS|LDFLAGS)|^BR2_PACKAGE_FFMPEG_EXTRACONF|^CONFIG_DRV_LCD=' $CFG
-          make -f Makefile.common hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          # Tabela de partições real do B200 (4MB): boot 0x0 | eromfs 0xd000 | firmware 0x47000 | persistentmem 0x3e0000
+          sed -i 's/part1-reg = <0x0 0x60000>/part1-reg = <0x0 0xd000>/' $DTS
+          sed -i 's/part2-reg = <0x60000 0x20000>/part2-reg = <0xd000 0x3a000>/' $DTS
+          sed -i 's/part3-reg = <0x80000 0x360000>/part3-reg = <0x47000 0x399000>/' $DTS
+          grep -q 'part1-reg = <0x0 0xd000>' $DTS
+          grep -q 'part2-reg = <0xd000 0x3a000>' $DTS
+          grep -q 'part3-reg = <0x47000 0x399000>' $DTS
+          grep -nE 'part[0-9]-reg' $DTS
+          make -f Makefile.common hichip_hc15xx_db_b200_v10_hcdemo_defconfig
           grep -q '^CONFIG_DRV_LCD=y' output/.config
           make -f Makefile.common all
 
@@ -63,16 +72,17 @@ jobs:
         run: |
           cd b200
           ls -la output/images/
-          test -s output/images/projector.uImage
+          SIZE=$(stat -c %s output/images/hcdemo.uImage)
+          echo "hcdemo.uImage: $SIZE bytes (limite da partição: 3772416)"
+          test "$SIZE" -le 3772416
 
       - name: Upload do artefato
         uses: actions/upload-artifact@v4
         with:
-          name: iscreen-b200-firmware
+          name: iscreen-b200-firmware-4mb
           path: |
-            b200/output/images/projector.uImage
-            b200/output/images/projector.bin
-            b200/output/images/dtb.bin
-            b200/output/images/persistentmem.bin
+            b200/output/images/hcdemo.uImage
             b200/output/images/romfs.img
+            b200/output/images/persistentmem.bin
+            b200/output/images/dtb.bin
           if-no-files-found: error
