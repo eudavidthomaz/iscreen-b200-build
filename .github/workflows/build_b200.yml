@@ -64,6 +64,11 @@ jobs:
           grep -q 'part2-reg = <0xd000 0x3a000>' $DTS
           grep -q 'part3-reg = <0x47000 0x399000>' $DTS
           grep -nE 'part[0-9]-reg' $DTS
+          # O iScreen usa saída HDMI; o DTS do hcdemo liga o LCD rgb (inexistente no aparelho) e desliga o hdmi.
+          sed -i '/^[[:space:]]*hdmi[[:space:]]*{/,/^[[:space:]]*};/ s/status = "disabled";/status = "okay";/' $DTS
+          sed -i '/^[[:space:]]*rgb[[:space:]]*{/,/^[[:space:]]*};/ s/status = "okay";/status = "disabled";/' $DTS
+          awk '/^[[:space:]]*hdmi[[:space:]]*\{/,/^[[:space:]]*\};/' $DTS | grep -q 'status = "okay"'
+          awk '/^[[:space:]]*rgb[[:space:]]*\{/,/^[[:space:]]*\};/' $DTS | grep -q 'status = "disabled"'
           make -f Makefile.common hichip_hc15xx_db_b200_v10_hcdemo_defconfig
           grep -q '^CONFIG_DRV_LCD=y' output/.config
           make -f Makefile.common all
@@ -75,6 +80,13 @@ jobs:
           SIZE=$(stat -c %s output/images/hcdemo.uImage)
           echo "hcdemo.uImage: $SIZE bytes (limite da partição: 3772416)"
           test "$SIZE" -le 3772416
+          /usr/bin/python3 - <<'PYEOF'
+          import fdt
+          d = fdt.parse_dtb(open('output/images/dtb.bin', 'rb').read())
+          st = {n: d.get_node('/hcrtos/' + n).get_property('status').data[0] for n in ('hdmi', 'rgb')}
+          print('dtb.bin:', st)
+          assert st == {'hdmi': 'okay', 'rgb': 'disabled'}, st
+          PYEOF
 
       - name: Upload do artefato
         uses: actions/upload-artifact@v4
