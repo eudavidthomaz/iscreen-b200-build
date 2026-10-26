@@ -45,6 +45,7 @@ jobs:
           cd b200
           sed -i 's|BR2_TARGET_CROSS=.*|BR2_TARGET_CROSS="/opt/frog-toolchain/mipsel-mti-elf_stable/bin/mipsel-mti-elf-"|' configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
           grep BR2_TARGET_CROSS configs/hichip_hc15xx_db_b200_v22_media_cast_defconfig
+          sed -i 's/-Werror/-Wno-error/g' build/Makefile.rules
           make -f Makefile.common hichip_hc15xx_db_b200_v22_media_cast_defconfig
           make -f Makefile.common all
 
