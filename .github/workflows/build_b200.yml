@@ -24,10 +24,20 @@ jobs:
           repo init -u https://github.com/Data-Frog-Central/NocturnalRTOS-Manifest
           repo sync -c --no-clone-bundle --optimized-fetch --prune -j$(nproc)
 
-      - name: Instalar dependências + toolchain MIPS
+      - name: Instalar dependências
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            wget git gcc flex bison gperf make unzip zip dos2unix swig \
+            python3-dev python3-pip python3-setuptools python3-wheel \
+            ninja-build rename gdb re2c universal-ctags lzip libncurses-dev \
+            tree pkg-config cmake automake lzop doxygen graphviz \
+            libssl-dev genromfs lzma mtools mtd-tools rsync
+          sudo pip3 install pylibfdt --break-system-packages || true
+
+      - name: Instalar toolchain MIPS
         run: |
           cd b200
-          ./scripts/install-dependencies.sh
           ./scripts/install-toolchain.sh
 
       - name: Compilar B200 (media_cast = hccast AirPlay/Miracast/DLNA)
@@ -47,7 +57,6 @@ jobs:
       - name: Gerar pacote de upgrade (HCFOTA)
         run: |
           cd b200
-          # renomeia o .asd para o formato HCFOTA esperado pelo upload_submit
           ASD=$(find . -name "*.asd" | head -1)
           if [ -n "$ASD" ]; then
             cp "$ASD" HCFOTA_HC15B200_hcscreen_rtos_prototype.bin
